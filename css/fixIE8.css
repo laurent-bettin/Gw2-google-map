@@ -1,0 +1,10 @@
+@charset "utf-8";
+
+/*http://blog.neatlysliced.com/2008/03/hr-image-replacement/*/
+.text-editor hr {
+    display: list-item;
+    list-style: url(path/to/image) inside;
+    filter: alpha(opacity=0);
+    margin-left: 0;
+    width: 0;
+}

@@ -1,0 +1,67 @@
+@charset "utf-8";
+/*
+ * 1. Corrects text resizing oddly in IE6/7 when body font-size is set using em units
+ *    http://clagnut.com/blog/348/#c790
+ */
+html {
+    font-size:100%; /* 1 */
+}
+
+/* =============================================================================
+   Forms
+   ========================================================================== */
+/*
+ * Corrects margin displayed oddly in IE6/7
+ */
+form,
+fieldset {
+    margin: 0;
+}
+
+fieldset {
+    border: 0;
+    padding: 0;
+}
+
+legend {
+    margin-left: -7px;
+}
+
+input[type="checkbox"],
+input[type="radio"] {
+    width: 13px;
+    height: 13px;
+}
+
+/*
+ * 3. Removes inner spacing in IE7 without affecting normal text inputs
+ *    Known issue: inner spacing remains in IE6
+ */
+button,
+input[type="button"],
+input[type="reset"],
+input[type="submit"] {
+    overflow: visible; /*3*/
+}
+
+/* =============================================================================
+    Micro clear fix http://nicolasgallagher.com/micro-clearfix-hack/
+    ========================================================================== */
+/* For IE 6/7 (trigger hasLayout) */
+.cf {
+    zoom: 1;
+}
+
+.ir {
+    text-indent: -9999px;
+}
+
+
+/*http://blog.neatlysliced.com/2008/03/hr-image-replacement/*/
+/*.text-editor hr {
+    display: list-item;
+    list-style: url(path/to/image) inside;
+    filter: alpha(opacity=0);
+    margin-left: 0;
+    width: 0;
+}*/
