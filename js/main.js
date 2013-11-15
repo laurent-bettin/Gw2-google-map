@@ -29,30 +29,10 @@ var front = {};
     var mapBound = new google.maps.LatLngBounds(southwest, northeast);
 
     var Snowden_Drifts = [[17664, 11264],[21760, 13312]]
-    var Snowden_Drifts_Northwest = fromPointToLatLng(new google.maps.Point(Snowden_Drifts[0][0], Snowden_Drifts[0][1]), 7);//ok
-    var Snowden_Drifts_Northeast = fromPointToLatLng(new google.maps.Point(Snowden_Drifts[1][0], Snowden_Drifts[0][1]), 7);//ok
-    var Snowden_Drifts_Southwest = fromPointToLatLng(new google.maps.Point(Snowden_Drifts[0][0], Snowden_Drifts[1][1]), 7);//ok
+    var Snowden_Drifts_Northwest = fromPointToLatLng(new google.maps.Point(Snowden_Drifts[0][0], Snowden_Drifts[0][1]), 7);
+    var Snowden_Drifts_Northeast = fromPointToLatLng(new google.maps.Point(Snowden_Drifts[1][0], Snowden_Drifts[0][1]), 7);
+    var Snowden_Drifts_Southwest = fromPointToLatLng(new google.maps.Point(Snowden_Drifts[0][0], Snowden_Drifts[1][1]), 7);
     var Snowden_Drifts_Southeast = fromPointToLatLng(new google.maps.Point(Snowden_Drifts[1][0], Snowden_Drifts[1][1]), 7);
-
-    // southeast = fromPointToLatLng(new google.maps.Point(32768, 32768), 7); //northeast[0], southwest[1]
-    // northwest = fromPointToLatLng(new google.maps.Point(0, 0), 7); //northeast[1], southwest[0]
-
-    var border = [
-        new google.maps.LatLng(-40, -90), //y, x
-        new google.maps.LatLng(-40, 90),
-        new google.maps.LatLng(40, 90),
-        new google.maps.LatLng(40, -90),
-        new google.maps.LatLng(-40, -90) //y, x
-    ]
-
-    var bermudaTriangle = new google.maps.Polygon({
-        paths: border,
-        strokeColor: '#FF0000',
-        strokeOpacity: 0.8,
-        strokeWeight: 2,
-        fillColor: '#FF0000',
-        fillOpacity: 0.35
-      });
 
     var Snowden_Drifts_Bounds = [
         Snowden_Drifts_Northeast,
@@ -206,7 +186,6 @@ var front = {};
             // ui.addMarker(Snowden_Drifts_Southeast);
             // ui.addMarker(Snowden_Drifts_Northwest);
             // ui.addMarker(new google.maps.LatLng(-85, 180));
-            bermudaTriangle.setMap(map);
             Snowden_Drifts_line.setMap(map);
 
         },
