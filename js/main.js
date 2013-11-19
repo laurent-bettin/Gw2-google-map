@@ -216,11 +216,7 @@ function fromPointToLatLng(point, max_zoom) {
             // google.maps.event.addListener(map, 'zoom_changed', draw_regions)
 
             google.maps.event.addListener(map, 'zoom_changed', function(ev) {
-                // var tileRange = Math.pow(2, map.zoom);
-                // for (var i = 0; i<tileRange; i++) {
-                //     overlay = new nameOverlay(map_bounds, 'text'+i, map);
-                // }
-                // console.log(map.zoom);
+                mapNamesManager.update_display();
             });
 
             // map.overlayMapTypes.insertAt(0, new CoordMapType(new google.maps.Size(256, 256)));
@@ -232,9 +228,9 @@ function fromPointToLatLng(point, max_zoom) {
             // ui.addMarker(Snowden_Drifts_Northwest);
             // ui.addMarker(new google.maps.LatLng(-85, 180));
 
+            var mapNamesManager = new MapNames(map, Gw2MapOptions.maxZoom);
 
             $.when(map_infos, explorable_zone).done( function(data1, data2) {
-                console.log(data1[0])
                 for (var i in data2[0]) {
                     explorable_zone_id.push(data2[0][i]["id"]);
                 };
@@ -254,8 +250,7 @@ function fromPointToLatLng(point, max_zoom) {
                         }
                     }
                 }
-                var mapNamesManager = new MapNames(map, datas_regions);
-                mapNamesManager.display_names();
+                mapNamesManager.display_names(datas_regions);
                 draw_map(map_list, map);
             })
 
