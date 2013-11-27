@@ -249,8 +249,20 @@ source https://github.com/stubbornella/oocss/blob/master/core/spacing/space.css
 }
 
 #GW2map {
+    width: 1024px;
+    height: 1024px;
+}
+
+.region-label {
+    color: #edc856;
+    display: inline-block;
     width: 100%;
-    height: 100%;
+    font: 700 2em/1.2 'menomonia' !important;
+    transform: rotate(-35deg);
+    margin: 0;
+    text-align: center;
+    text-shadow: 1px 1px rgb(0, 0, 0);
+    vertical-align: middle;
 }
 
 /* ==========================================================================
