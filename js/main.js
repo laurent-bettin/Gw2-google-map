@@ -47,8 +47,8 @@ function fromPointToLatLng(point, max_zoom) {
         },
         init: function(urls, callbacks) {
             this.callbacks = callbacks;
-            var _this = this,
-                len = urls.length;
+            var _this = this;
+            var len = urls.length;
 
             for(var i = 0; i < len; i++) {
                 this.result.push(this.requestDatas(urls[i]));
@@ -161,7 +161,7 @@ function fromPointToLatLng(point, max_zoom) {
 
     var mapNames = {
         infosWindows: [],
-        regions: null,
+        regions: [],
         overlay: [],
         map: null,
         maxZoom: 0,
@@ -180,42 +180,64 @@ function fromPointToLatLng(point, max_zoom) {
                 this.infosWindows.push(infowindow);
             }
         },
-        updateDisplay: function() {
-            var lenIw = this.infosWindows.length;
-            var lenIr = this.regions.length;
+        hideOverlay: function() {
             var lenOverlay = this.overlay.length;
-            var i;
+            if(lenOverlay) {
+                for(var i = 0; i < lenOverlay; i++) {
+                    this.overlay[i].hide();
+                }
+            }
+        },
+        showOverlay: function() {
+            var lenOverlay = this.overlay.length;
+            if(lenOverlay) {
+                for(var i = 0; i < lenOverlay; i++) {
+                    // console.log(this.map.getBounds().contains(this.overlay[i].bounds_.getCenter()) == true)
+                    if(this.map.getBounds().contains(this.overlay[i].bounds_.getCenter()) == true) {
+                        if(this.overlay[i].getMap() == null) {
+                            this.overlay[i].setMap(this.map);
+                        }else{
+                            this.overlay[i].show();
+                        }
+                    }
+                }
+            }else{
+                this.setOverlay();
+            }
+        },
+        showInfosWindow: function () {
+            var lenIw = this.infosWindows.length;
             if(!lenIw) {
                 this.createInfowindow();
             }
-            var zoomLvl = this.map.getZoom();
-            if(zoomLvl === 2) {
-                for(i = 0; i < lenIr; i++) {
+            lenIw = this.infosWindows.length;
+            for(var i = 0; i < lenIw; i++) {
+                if (this.infosWindows[i].getMap() == null) {
                     this.infosWindows[i].open(this.map);
                 }
-                for(i = 0; i < lenOverlay; i++) {
-                    this.overlay[i].hide();
-                }
+            }
+        },
+        hideInfosWindow: function() {
+            var lenIw = this.infosWindows.length;
+            for(var i = 0; i < lenIw; i++) {
+                this.infosWindows[i].close();
+            }
+        },
+        updateDisplay: function() {
+            var zoomLvl = this.map.getZoom();
+            if(zoomLvl === 2) {
+                this.showInfosWindow();
+                this.hideOverlay();
             }else{
-                for(i = 0; i < lenIr; i++) {
-                    this.infosWindows[i].close();
-                }
+                this.hideInfosWindow();
             }
 
             if(zoomLvl > 2 && zoomLvl <= 5) {
-                if(lenOverlay) {
-                    for(i = 0; i < lenOverlay; i++) {
-                        this.overlay[i].show();
-                    }
-                }else{
-                    this.setOverlay();
-                }
+                this.showOverlay();
             }
 
-            if(zoomLvl > 5 && lenOverlay) {
-                for(i = 0; i < lenOverlay; i++) {
-                    this.overlay[i].hide();
-                }
+            if(zoomLvl > 5) {
+                this.hideOverlay();
             }
 
         },
@@ -267,23 +289,27 @@ function fromPointToLatLng(point, max_zoom) {
                 this.setMapNamesRequestResult
             ];
 
-            var p = dataLoader.init(urls, callbacks);
+            var datasDeferred = dataLoader.init(urls, callbacks);
 
             this.mapRef = gmap.init();
-            var test = mapNames.init(_this.mapRef, gmap.Gw2MapUiOptions.maxZoom);
+            var mapNamesDeferred = mapNames.init(_this.mapRef, gmap.Gw2MapUiOptions.maxZoom);
 
             var stack = $.Callbacks();
             stack.add([
                 this.getExplorablesZonesId,
                 this.getExplorablesZones,
                 this.drawExplorablesZones,
-                test.resolve
+                mapNamesDeferred.resolve
             ]);
 
-            $.when(p.done($.proxy(_this.applyCallbacks, _this)))
-                .then($.proxy(stack.fire, _this));
+            datasDeferred.done($.proxy(_this.applyCallbacks, _this))
+                .done($.proxy(stack.fire, _this));
 
             google.maps.event.addListener(_this.mapRef, 'zoom_changed', function(ev) {
+                mapNames.updateDisplay();
+            });
+
+            google.maps.event.addListener(_this.mapRef, 'bounds_changed', function() {
                 mapNames.updateDisplay();
             });
 
@@ -301,6 +327,7 @@ function fromPointToLatLng(point, max_zoom) {
 
         },
         applyCallbacks: function(datas, callbacks) {
+            console.log(datas)
             var len = callbacks.length;
             for (var i=0; i<len; i++) {
                 if($.isFunction(callbacks[i])) {
