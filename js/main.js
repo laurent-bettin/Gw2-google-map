@@ -143,7 +143,7 @@ function fromPointToLatLng(point, max_zoom) {
                 // overlay = new nameOverlay(mapBound, data.regions[region].name, map);
                 var mapPoint = new google.maps.Point(regions[i][1][0], regions[i][1][1]);
                 var infowindow = new google.maps.InfoWindow({
-                    content: '<b>'+regions[i][0]+'</b>',
+                    content: '<p class="continent-name">'+regions[i][0]+'</p>',
                     position: fromPointToLatLng(mapPoint, this.maxZoom)
                 });
                 this.infosWindows.push(infowindow);

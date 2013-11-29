@@ -274,6 +274,12 @@ source https://github.com/stubbornella/oocss/blob/master/core/spacing/space.css
     width: 125px;
 }
 
+.continent-name {
+    font-weight: 700;
+    margin: 0;
+    text-align: center;
+    width: 140px;
+}
 
 /* ==========================================================================
     Print styles.
