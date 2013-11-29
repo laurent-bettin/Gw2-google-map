@@ -265,6 +265,16 @@ source https://github.com/stubbornella/oocss/blob/master/core/spacing/space.css
     vertical-align: middle;
 }
 
+.area-label {
+    color: #fff;
+    font: 700 1.5em/1.2 'menomonia' !important;
+    margin: 0;
+    text-align: center;
+    text-shadow: 1px 1px rgb(0, 0, 0);
+    width: 125px;
+}
+
+
 /* ==========================================================================
     Print styles.
     Inlined to avoid required HTTP connection: h5bp.com/r
