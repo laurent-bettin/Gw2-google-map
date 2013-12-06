@@ -140,19 +140,17 @@ function fromPointToLatLng(point, max_zoom) {
         map: null,
         maxZoom: 0,
         createInfowindow: function() {
-            $(document).on('click', '.continent-name', function() {
-                // console.log($(this).data('latLng'));
-                mapNames.map.fitBounds($(this).data('mapBounds'))
-            })
-
             for (var r in locations.regions) {
                 // overlay = new nameOverlay(mapBound, data.locations[region].name, map);
                 var mapPoint = new google.maps.Point(locations.regions[r]['label_coord'][0], locations.regions[r]['label_coord'][1]);
                 var latLng = fromPointToLatLng(mapPoint, this.maxZoom);
+
+                //Get the latLngBound of the global bound of the regions
                 var mapRect = locations.regions[r]['global_continent_rect'];
                 var mapRectNortheast = fromPointToLatLng(new google.maps.Point(mapRect[1][0], mapRect[0][1]), 7);
                 var mapRectSouthwest = fromPointToLatLng(new google.maps.Point(mapRect[0][0], mapRect[1][1]), 7);
                 var mapBounds = new google.maps.LatLngBounds(mapRectSouthwest, mapRectNortheast);
+
                 var p = $('<p />');
                 p
                     .data('mapBounds', mapBounds)
@@ -314,25 +312,27 @@ function fromPointToLatLng(point, max_zoom) {
                         // locations[regionName]['explorable_zones'][mapName]['continent_rect'] = $.extend(true, {}, continentRect);
                         locations['explorable_zones'].push([mapName, $.extend(true, {}, continentRect)]);
                         var j;
-                        // [[17664, 11264],[21760, 13312]] -> [northwest, southeast]
-                        //mapRect[0] could be array or number depending on JSON data were a map_rect [[x, y], [x, y]]
+
+
+                        //get the global bound of all the maps of the regions
+                        //search the min/max value of the current map bounf of the regin for northEast and southWest
                         var globalContinentRect = locations['regions'][regionName];
                         if(!globalContinentRect['global_continent_rect']) {
                             globalContinentRect['global_continent_rect'] = continentRect;
                         }else{
-                            globalContinentRect['global_continent_rect'][0][0] = globalContinentRect['global_continent_rect'][0][0]
-                                <= continentRect[0][0]
-                                ? globalContinentRect['global_continent_rect'][0][0] : continentRect[0][0];
-                            globalContinentRect['global_continent_rect'][0][1] = globalContinentRect['global_continent_rect'][0][1]
-                                <= continentRect[0][1]
-                                ? globalContinentRect['global_continent_rect'][0][1] : continentRect[0][1];
+                            globalContinentRect['global_continent_rect'][0][0] = globalContinentRect['global_continent_rect'][0][0] <=
+                                continentRect[0][0] ?
+                                globalContinentRect['global_continent_rect'][0][0] : continentRect[0][0];
+                            globalContinentRect['global_continent_rect'][0][1] = globalContinentRect['global_continent_rect'][0][1] <=
+                                continentRect[0][1] ?
+                                globalContinentRect['global_continent_rect'][0][1] : continentRect[0][1];
 
-                            globalContinentRect['global_continent_rect'][1][0] = globalContinentRect['global_continent_rect'][1][0]
-                                >= continentRect[1][0]
-                                ? globalContinentRect['global_continent_rect'][1][0] : continentRect[1][0];
-                            globalContinentRect['global_continent_rect'][1][1] = globalContinentRect['global_continent_rect'][1][1]
-                                >= continentRect[1][1]
-                                ? globalContinentRect['global_continent_rect'][1][1] : continentRect[1][1];
+                            globalContinentRect['global_continent_rect'][1][0] = globalContinentRect['global_continent_rect'][1][0] >=
+                                continentRect[1][0] ?
+                                globalContinentRect['global_continent_rect'][1][0] : continentRect[1][0];
+                            globalContinentRect['global_continent_rect'][1][1] = globalContinentRect['global_continent_rect'][1][1] >=
+                                continentRect[1][1] ?
+                                globalContinentRect['global_continent_rect'][1][1] : continentRect[1][1];
                         }
                     }
                     for (var sector in mapFloor['sectors']) {
@@ -345,13 +345,6 @@ function fromPointToLatLng(point, max_zoom) {
                 }
 
             }
-
-            // for(var r in locations['regions']) {
-            //     // var loc = fromPointToLatLng(new google.maps.Point(locations['regions'][r]['global_continent_rect'][0][0], locations['regions'][r]['global_continent_rect'][0][1]), 7);
-            //     var loc2 = fromPointToLatLng(new google.maps.Point(locations['regions'][r]['global_continent_rect'][1][0], locations['regions'][r]['global_continent_rect'][1][1]), 7);
-            //     // ui.addMarker(loc, ui.mapRef)
-            //     ui.addMarker(loc2, ui.mapRef)
-            // }
 
         }
     };
@@ -391,7 +384,7 @@ function fromPointToLatLng(point, max_zoom) {
             var datasDeferred = dataLoader.init(urls, callbacks);
 
             datasDeferred.done(_this.applyCallbacks)
-                .done(stack.fire)
+                .done(stack.fire);
 
             google.maps.event.addListener(_this.mapRef, 'zoom_changed', function(ev) {
                 // console.log('zoom_changed')
@@ -399,6 +392,12 @@ function fromPointToLatLng(point, max_zoom) {
             });
 
             google.maps.event.addListener(_this.mapRef, 'bounds_changed', $.proxy(mapNames.updateDisplay, mapNames));
+
+            //fit the map on the region
+            $(document).on('click', '.continent-name', function() {
+                // console.log($(this).data('latLng'));
+                ui.mapRef.fitBounds($(this).data('mapBounds'));
+            });
 
             // overlay = new NameOverlay(map_bounds, data1.mapFloorDatas[region].name, mapRef);
 
