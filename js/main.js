@@ -26,9 +26,11 @@ function fromPointToLatLng(point, max_zoom) {
     "use strict";
 
     var explorablesZonesId = [];
-    var explorablesZones = [];
-    var areas = [];
-    var regions = [];
+    var locations = {};
+    locations['explorable_zones'] = [];
+    locations['areas'] = [];
+    locations['regions'] = {};
+    // var globalContinentRect = [];
     var southwest = fromPointToLatLng(new google.maps.Point(0, 32768), 7);
     var northeast = fromPointToLatLng(new google.maps.Point(32768, 0), 7);
     // var map_bounds = new google.maps.LatLngBounds(southwest, northeast);
@@ -111,12 +113,12 @@ function fromPointToLatLng(point, max_zoom) {
             // tile range in one direction range is dependent on zoom level
             // 0 = 1 tile, 1 = 2 tiles, 2 = 4 tiles, 3 = 8 tiles, etc
             // var tileRange = 1 << zoom;
-            //Donne le nombre de tuiles qui sera chargée sur une rangée ou une colonne
+            //Donne le nombre de tuiles qui sera chargÃ©e sur une rangÃ©e ou une colonne
             //zoom 0 -> 1 tuile, zoom 1 -> 2 tuiles, zoom 2 -> 4 tuiles etc
             var tileRange = Math.pow(2, zoom);
 
-            // On ne charge pas d'images pour toutes les coordonées x et y inférieures à 0
-            // et supérieures au nombre de tuiles par rangée
+            // On ne charge pas d'images pour toutes les coordonÃ©es x et y infÃ©rieures Ã  0
+            // et supÃ©rieures au nombre de tuiles par rangÃ©e
             if ((x < tileRange) &&
                 (x > -1) &&
                 (y < tileRange) &&
@@ -138,13 +140,27 @@ function fromPointToLatLng(point, max_zoom) {
         map: null,
         maxZoom: 0,
         createInfowindow: function() {
-            var lenIr = regions.length;
-            for (var i = 0; i < lenIr; i++) {
-                // overlay = new nameOverlay(mapBound, data.regions[region].name, map);
-                var mapPoint = new google.maps.Point(regions[i][1][0], regions[i][1][1]);
+            $(document).on('click', '.continent-name', function() {
+                // console.log($(this).data('latLng'));
+                mapNames.map.fitBounds($(this).data('mapBounds'))
+            })
+
+            for (var r in locations.regions) {
+                // overlay = new nameOverlay(mapBound, data.locations[region].name, map);
+                var mapPoint = new google.maps.Point(locations.regions[r]['label_coord'][0], locations.regions[r]['label_coord'][1]);
+                var latLng = fromPointToLatLng(mapPoint, this.maxZoom);
+                var mapRect = locations.regions[r]['global_continent_rect'];
+                var mapRectNortheast = fromPointToLatLng(new google.maps.Point(mapRect[1][0], mapRect[0][1]), 7);
+                var mapRectSouthwest = fromPointToLatLng(new google.maps.Point(mapRect[0][0], mapRect[1][1]), 7);
+                var mapBounds = new google.maps.LatLngBounds(mapRectSouthwest, mapRectNortheast);
+                var p = $('<p />');
+                p
+                    .data('mapBounds', mapBounds)
+                    .addClass('continent-name')
+                    .html(r);
                 var infowindow = new google.maps.InfoWindow({
-                    content: '<p class="continent-name">'+regions[i][0]+'</p>',
-                    position: fromPointToLatLng(mapPoint, this.maxZoom)
+                    content: p[0],
+                    position: latLng
                 });
                 this.infosWindows.push(infowindow);
             }
@@ -163,7 +179,8 @@ function fromPointToLatLng(point, max_zoom) {
                 // console.log(this.map.getBounds().contains(this.overlayDatas[i].bounds_.getCenter()) == true)
                 // overlayDatas could contain instance of latLng or latLngBound to determine the type of instance
                 // we test if the method getCenter exist : if getCenter != undefined -> latLngBound
-                var center = overlayDatas[i].bounds_.getCenter ? overlayDatas[i].bounds_.getCenter() : overlayDatas[i].bounds_;
+                var center = overlayDatas[i].bounds_.getCenter ?
+                    overlayDatas[i].bounds_.getCenter() : overlayDatas[i].bounds_;
                 //display only if center is in visible area of the map
                 if(this.map.getBounds().contains(center) === true) {
                     //if element is already on map no need to call setMap
@@ -207,7 +224,7 @@ function fromPointToLatLng(point, max_zoom) {
             if(zoomLvl > 2 && zoomLvl <= 5) {
                 var lenOverlay = this.overlay.length;
                 if(!lenOverlay) {
-                    this.overlay = this.setOverlay(explorablesZones);
+                    this.overlay = this.setOverlay(locations['explorable_zones']);
                 }
                 this.hideOverlay(this.areaOverlay);
                 this.toggleOverlay(this.overlay);
@@ -216,7 +233,7 @@ function fromPointToLatLng(point, max_zoom) {
             if(zoomLvl > 5) {
                 var lenAreaOverlay = this.areaOverlay.length;
                 if(!lenAreaOverlay) {
-                    this.areaOverlay = this.setOverlay(areas);
+                    this.areaOverlay = this.setOverlay(locations['areas']);
                 }
                 this.hideOverlay(this.overlay);
                 this.toggleOverlay(this.areaOverlay);
@@ -224,7 +241,6 @@ function fromPointToLatLng(point, max_zoom) {
 
         },
         setOverlay: function(overlayZone) {
-            var map = this.mapRef;
             var len = overlayZone.length;
             var maxZoom = gmap.getMaxZoom();
             var overlayList = [];
@@ -261,11 +277,15 @@ function fromPointToLatLng(point, max_zoom) {
     var datasParser = {
         mapNamesRequestResult: null,
         mapFloorRequestResult: null,
+        filesRequestResult: null,
         setMapNamesRequestResult: function(datas) {
             this.mapNamesRequestResult = datas;
         },
         setMapFloorRequestResult: function(datas) {
             this.mapFloorRequestResult = datas;
+        },
+        setFilesRequestResult: function(datas) {
+            this.filesRequestResult = datas;
         },
         getExplorablesZonesId: function() {
             var mapNamesDatas = this.mapNamesRequestResult;
@@ -273,11 +293,14 @@ function fromPointToLatLng(point, max_zoom) {
                 explorablesZonesId.push(mapNamesDatas[i]["id"]);
             }
         },
-        //sort datas in varous type: regions / explorables zones / area
+        //sort datas in varous type: locations / explorables zones / area
         getExplorablesZones: function() {
             var mapFloorDatas = this.mapFloorRequestResult.regions;
+
             for (var r in mapFloorDatas) {
-                regions.push([mapFloorDatas[r]['name'], mapFloorDatas[r]['label_coord']]);
+                var regionName = mapFloorDatas[r]['name'];
+                locations['regions'][regionName] = {};
+                locations['regions'][regionName]['label_coord'] = mapFloorDatas[r]['label_coord'];
                 for(var mapId in mapFloorDatas[r]['maps']) {
                     var mapFloor = mapFloorDatas[r]['maps'][mapId];
                     //City are not present in map_names.json but we could find them in map_floor.json
@@ -287,15 +310,49 @@ function fromPointToLatLng(point, max_zoom) {
                     if(explorablesZonesId.indexOf(mapId) != -1 || (minLvl === 0 && maxLvl === 80)) {
                         var mapName = mapFloor['name'];
                         var continentRect = mapFloor['continent_rect'];
-                        explorablesZones.push([mapName, continentRect]);
+                        // locations[regionName]['explorable_zones'][mapName] = {}
+                        // locations[regionName]['explorable_zones'][mapName]['continent_rect'] = $.extend(true, {}, continentRect);
+                        locations['explorable_zones'].push([mapName, $.extend(true, {}, continentRect)]);
+                        var j;
+                        // [[17664, 11264],[21760, 13312]] -> [northwest, southeast]
+                        //mapRect[0] could be array or number depending on JSON data were a map_rect [[x, y], [x, y]]
+                        var globalContinentRect = locations['regions'][regionName];
+                        if(!globalContinentRect['global_continent_rect']) {
+                            globalContinentRect['global_continent_rect'] = continentRect;
+                        }else{
+                            globalContinentRect['global_continent_rect'][0][0] = globalContinentRect['global_continent_rect'][0][0]
+                                <= continentRect[0][0]
+                                ? globalContinentRect['global_continent_rect'][0][0] : continentRect[0][0];
+                            globalContinentRect['global_continent_rect'][0][1] = globalContinentRect['global_continent_rect'][0][1]
+                                <= continentRect[0][1]
+                                ? globalContinentRect['global_continent_rect'][0][1] : continentRect[0][1];
+
+                            globalContinentRect['global_continent_rect'][1][0] = globalContinentRect['global_continent_rect'][1][0]
+                                >= continentRect[1][0]
+                                ? globalContinentRect['global_continent_rect'][1][0] : continentRect[1][0];
+                            globalContinentRect['global_continent_rect'][1][1] = globalContinentRect['global_continent_rect'][1][1]
+                                >= continentRect[1][1]
+                                ? globalContinentRect['global_continent_rect'][1][1] : continentRect[1][1];
+                        }
                     }
                     for (var sector in mapFloor['sectors']) {
                         var areaName = mapFloor['sectors'][sector]['name'];
                         var areaRect = mapFloor['sectors'][sector]['coord'];
-                        areas.push([areaName, areaRect]);
+                        // locations[regionName]['areas'][areaName] = {};
+                        // locations[regionName]['areas'][areaName]['label_coord'] = areaRect;
+                        locations['areas'].push([areaName, areaRect]);
                     }
                 }
+
             }
+
+            // for(var r in locations['regions']) {
+            //     // var loc = fromPointToLatLng(new google.maps.Point(locations['regions'][r]['global_continent_rect'][0][0], locations['regions'][r]['global_continent_rect'][0][1]), 7);
+            //     var loc2 = fromPointToLatLng(new google.maps.Point(locations['regions'][r]['global_continent_rect'][1][0], locations['regions'][r]['global_continent_rect'][1][1]), 7);
+            //     // ui.addMarker(loc, ui.mapRef)
+            //     ui.addMarker(loc2, ui.mapRef)
+            // }
+
         }
     };
 
@@ -310,13 +367,15 @@ function fromPointToLatLng(point, max_zoom) {
             //datas to load
             var urls = [
                 'https://api.guildwars2.com/v1/map_floor.json?continent_id=1&floor=2',
-                'https://api.guildwars2.com/v1/map_names.json'
+                'https://api.guildwars2.com/v1/map_names.json',
+                'https://api.guildwars2.com/v1/files.json'
             ];
 
             //callback when data will be ready
             var callbacks = [
                 $.proxy(datasParser.setMapFloorRequestResult, datasParser),
-                $.proxy(datasParser.setMapNamesRequestResult, datasParser)
+                $.proxy(datasParser.setMapNamesRequestResult, datasParser),
+                $.proxy(datasParser.setFilesRequestResult, datasParser)
             ];
 
             //stack of function for parsing datas when they will be ready
@@ -364,12 +423,11 @@ function fromPointToLatLng(point, max_zoom) {
         },
         drawExplorablesZones: function() {
             var map = this.mapRef;
-            var len = explorablesZones.length;
+            var len = locations['explorable_zones'].length;
             var maxZoom = gmap.getMaxZoom();
             // https://google-developers.appspot.com/maps/documentation/javascript/examples/polygon-simple
             for(var i = 0; i < len; i++) {
-                var mapRect = explorablesZones[i][1];
-
+                var mapRect = locations['explorable_zones'][i][1];
                 // [[17664, 11264],[21760, 13312]] -> [northwest, southeast]
                 var mapRectNorthwest = fromPointToLatLng(new google.maps.Point(mapRect[0][0], mapRect[0][1]), maxZoom);
                 var mapRectNortheast = fromPointToLatLng(new google.maps.Point(mapRect[1][0], mapRect[0][1]), maxZoom);
