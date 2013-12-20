@@ -250,7 +250,7 @@ source https://github.com/stubbornella/oocss/blob/master/core/spacing/space.css
 
 #GW2map {
     width: 1024px;
-    height: 1024px;
+    height: 100%;
 }
 
 .region-label {

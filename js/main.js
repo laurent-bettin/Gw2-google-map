@@ -25,15 +25,22 @@ function fromPointToLatLng(point, max_zoom) {
 (function (context) {
     "use strict";
 
+    var map = null;
+    var MAXZOOM = 7;
+    var MINZOOM = 2;
     var explorablesZonesId = [];
     var locations = {};
     locations['explorable_zones'] = [];
     locations['areas'] = [];
     locations['regions'] = {};
-    // var globalContinentRect = [];
-    var southwest = fromPointToLatLng(new google.maps.Point(0, 32768), 7);
-    var northeast = fromPointToLatLng(new google.maps.Point(32768, 0), 7);
-    // var map_bounds = new google.maps.LatLngBounds(southwest, northeast);
+    var pois = {};
+    pois['landmark'] = [];
+    pois['waypoint'] = [];
+    pois['vista'] = [];
+    pois['unlock'] = [];
+    var southwest = fromPointToLatLng(new google.maps.Point(0, 32768), MAXZOOM);
+    var northeast = fromPointToLatLng(new google.maps.Point(32768, 0), MAXZOOM);
+    var allowedBounds = new google.maps.LatLngBounds(southwest, northeast);
 
     var overlay;
 
@@ -69,21 +76,19 @@ function fromPointToLatLng(point, max_zoom) {
 
     //initialize gmap
     var gmap = {
+        lastValidCenter: null,
         Gw2MapUiOptions: {
             tileSize: new google.maps.Size(256, 256),
-            maxZoom: 7,
-            minZoom: 2,
+            maxZoom: MAXZOOM,
+            minZoom: MINZOOM,
             name: "GW2WorldMap"
-        },
-        getMaxZoom: function() {
-            return this.Gw2MapUiOptions.maxZoom;
         },
         init: function() {
             this.Gw2MapUiOptions.getTileUrl = this.getTileUrl;
             var GW2WorldMap = new google.maps.ImageMapType(this.Gw2MapUiOptions),
                 GW2WorldMapOpts = {
                     center : new google.maps.LatLng(0, 0),
-                    zoom : 2,
+                    zoom : MINZOOM,
                     mapTypeId : "custom",
                     mapTypeControl : false,
                     panControl: false,
@@ -95,6 +100,8 @@ function fromPointToLatLng(point, max_zoom) {
             var map = new google.maps.Map(document.getElementById("GW2map"), GW2WorldMapOpts);
             map.mapTypes.set('custom', GW2WorldMap);
 
+            this.lastValidCenter = map.getCenter();
+
             return map;
         },
         getTileUrl: function(coord, zoom) {
@@ -104,6 +111,36 @@ function fromPointToLatLng(point, max_zoom) {
             }
             // https://tiles.guildwars2.com/1/1/zoom/{x}/{y}.jpg
             return "https://tiles.guildwars2.com/1/1/"+zoom+"/"+normalizedCoord.x+"/"+normalizedCoord.y+".jpg";
+        },
+        limitPanning: function() {
+            var mapBounds = map.getBounds();
+            var mapCenter = map.getCenter();
+
+            var maxX = mapBounds.getNorthEast().lng();
+            var minX = mapBounds.getSouthWest().lng();
+            var allowedMaxX = allowedBounds.getNorthEast().lng();
+            var allowedMinX = allowedBounds.getSouthWest().lng();
+
+            var maxY = mapBounds.getNorthEast().lat();
+            var minY = mapBounds.getSouthWest().lat();
+            var allowedMaxY = allowedBounds.getNorthEast().lat();
+            var allowedMinY = allowedBounds.getSouthWest().lat();
+
+            if(
+                maxY < allowedMaxY &&
+                maxY > mapCenter.lat() &&
+                minY > allowedMinY &&
+                minY < mapCenter.lat() &&
+                maxX < allowedMaxX &&
+                maxX > mapCenter.lng() &&
+                minX > allowedMinX &&
+                minX < mapCenter.lng()
+               ) {
+                this.lastValidCenter = map.getCenter();
+                return;
+            }
+
+            map.panTo(this.lastValidCenter);
         },
         getNormalizedCoord: function (coord, zoom) {
             var y = coord.y;
@@ -133,17 +170,60 @@ function fromPointToLatLng(point, max_zoom) {
         }
     };
 
+    var markers = {
+        waypoints: [],
+        createWaypoints: function() {
+            var len = pois['waypoint'].length;
+            var waypointId = datasParser.filesRequestResult['map_waypoint']['file_id'];
+            var waypointSignature = datasParser.filesRequestResult['map_waypoint']['signature'];
+            var url = 'https://render.guildwars2.com/file/'+waypointSignature+'/'+waypointId+'.png';
+
+            var image = {
+                url: url,
+                size: new google.maps.Size(64, 64),
+                origin: new google.maps.Point(0, 0),
+                anchor: new google.maps.Point(16, 16),
+                scaledSize: new google.maps.Size(32, 32)
+            };
+
+            for(var i=0; i<len; i++) {
+                var location = fromPointToLatLng(new google.maps.Point(pois['waypoint'][i][0], pois['waypoint'][i][1]), MAXZOOM);
+                var marker = new google.maps.Marker({
+                    position: location,
+                    icon: image
+                });
+                this.waypoints.push(marker);
+            }
+        },
+        toggleWaypoints: function() {
+            var len = this.waypoints.length;
+            for(var i=0; i<len; i++) {
+                var inArea = map.getBounds().contains(this.waypoints[i].getPosition());
+                if (this.waypoints[i].getMap() == null) {
+                    if(inArea) {
+                        this.waypoints[i].setMap(map);
+                    }
+                }else{
+                    if(!inArea) {
+                        this.waypoints[i].setMap(null);
+                    }
+                }
+            }
+        },
+        init: function() {
+
+        }
+    };
+
     var mapNames = {
         infosWindows: [],
         overlay: [],
         areaOverlay: [],
-        map: null,
-        maxZoom: 0,
         createInfowindow: function() {
             for (var r in locations.regions) {
                 // overlay = new nameOverlay(mapBound, data.locations[region].name, map);
                 var mapPoint = new google.maps.Point(locations.regions[r]['label_coord'][0], locations.regions[r]['label_coord'][1]);
-                var latLng = fromPointToLatLng(mapPoint, this.maxZoom);
+                var latLng = fromPointToLatLng(mapPoint, MAXZOOM);
 
                 //Get the latLngBound of the global bound of the regions
                 var mapRect = locations.regions[r]['global_continent_rect'];
@@ -156,47 +236,20 @@ function fromPointToLatLng(point, max_zoom) {
                     .data('mapBounds', mapBounds)
                     .addClass('continent-name')
                     .html(r);
+
                 var infowindow = new google.maps.InfoWindow({
-                    content: p[0],
-                    position: latLng
-                });
+                        content: p[0],
+                        position: latLng
+                    });
+
                 this.infosWindows.push(infowindow);
-            }
-        },
-        hideOverlay: function(overlayDatas) {
-            var lenOverlayDatas = overlayDatas.length;
-            for(var i = 0; i < lenOverlayDatas; i++) {
-                if(overlayDatas[i].getMap() != null) {
-                    overlayDatas[i].setMap(null);
-                }
-            }
-        },
-        toggleOverlay: function(overlayDatas) {
-            var lenOverlayDatas = overlayDatas.length;
-            for(var i = 0; i < lenOverlayDatas; i++) {
-                // console.log(this.map.getBounds().contains(this.overlayDatas[i].bounds_.getCenter()) == true)
-                // overlayDatas could contain instance of latLng or latLngBound to determine the type of instance
-                // we test if the method getCenter exist : if getCenter != undefined -> latLngBound
-                var center = overlayDatas[i].bounds_.getCenter ?
-                    overlayDatas[i].bounds_.getCenter() : overlayDatas[i].bounds_;
-                //display only if center is in visible area of the map
-                if(this.map.getBounds().contains(center) === true) {
-                    //if element is already on map no need to call setMap
-                    if(overlayDatas[i].getMap() == null) {
-                        overlayDatas[i].setMap(this.map);
-                    }
-                }else{
-                    if(overlayDatas[i].getMap() != null) {
-                        overlayDatas[i].setMap(null);
-                    }
-                }
             }
         },
         showInfosWindow: function () {
             var lenIw = this.infosWindows.length;
             for(var i = 0; i < lenIw; i++) {
                 if (this.infosWindows[i].getMap() == null) {
-                    this.infosWindows[i].open(this.map);
+                    this.infosWindows[i].open(map);
                 }
             }
         },
@@ -206,15 +259,44 @@ function fromPointToLatLng(point, max_zoom) {
                 this.infosWindows[i].close();
             }
         },
+        hideMapElement: function(elements) {
+            var lenElements = elements.length;
+            for(var i = 0; i < lenElements; i++) {
+                if(elements[i].getMap() != null) {
+                    elements[i].setMap(null);
+                }
+            }
+        },
+        toggleOverlay: function(overlayDatas) {
+            var lenOverlayDatas = overlayDatas.length;
+            for(var i = 0; i < lenOverlayDatas; i++) {
+                // console.log(map.getBounds().contains(this.overlayDatas[i].bounds_.getCenter()) == true)
+                // overlayDatas could contain instance of latLng or latLngBound to determine the type of instance
+                // we test if the method getCenter exist : if getCenter != undefined -> latLngBound
+                var center = overlayDatas[i].bounds_.getCenter ?
+                    overlayDatas[i].bounds_.getCenter() : overlayDatas[i].bounds_;
+                //display only if center is in visible area of the map
+                if(map.getBounds().contains(center) === true) {
+                    //call setMap only if element not on map
+                    if(overlayDatas[i].getMap() == null) {
+                        overlayDatas[i].setMap(map);
+                    }
+                }else{
+                    if(overlayDatas[i].getMap() != null) {
+                        overlayDatas[i].setMap(null);
+                    }
+                }
+            }
+        },
         updateDisplay: function() {
-            var zoomLvl = this.map.getZoom();
+            var zoomLvl = map.getZoom();
             if(zoomLvl === 2) {
                 var lenIw = this.infosWindows.length;
                 if(!lenIw) {
                     this.createInfowindow();
                 }
                 this.showInfosWindow();
-                this.hideOverlay(this.overlay);
+                this.hideMapElement(this.overlay);
             }else{
                 this.hideInfosWindow();
             }
@@ -224,7 +306,7 @@ function fromPointToLatLng(point, max_zoom) {
                 if(!lenOverlay) {
                     this.overlay = this.setOverlay(locations['explorable_zones']);
                 }
-                this.hideOverlay(this.areaOverlay);
+                this.hideMapElement(this.areaOverlay);
                 this.toggleOverlay(this.overlay);
             }
 
@@ -233,20 +315,31 @@ function fromPointToLatLng(point, max_zoom) {
                 if(!lenAreaOverlay) {
                     this.areaOverlay = this.setOverlay(locations['areas']);
                 }
-                this.hideOverlay(this.overlay);
+                this.hideMapElement(this.overlay);
                 this.toggleOverlay(this.areaOverlay);
+            }
+
+            if(zoomLvl > 3) {
+                var lenWaypoint = markers.waypoints.length;
+                if(!lenWaypoint) {
+                    markers.createWaypoints();
+                }
+                markers.toggleWaypoints();
+            }
+
+            if(zoomLvl <= 3) {
+                this.hideMapElement(markers.waypoints);
             }
 
         },
         setOverlay: function(overlayZone) {
             var len = overlayZone.length;
-            var maxZoom = gmap.getMaxZoom();
             var overlayList = [];
             var mapBounds;
             var mapRectNortheast;
             var mapRectSouthwest;
             // https://google-developers.appspot.com/maps/documentation/javascript/examples/polygon-simple
-            for(var i = 0; i < len; i++) {
+            for(var i = 0; i<len; i++) {
                 // console.log(overlayZone[i][1].instanceof(array))
                 var mapRect = overlayZone[i][1];
                 // [[17664, 11264],[21760, 13312]] -> [northwest, southeast]
@@ -254,21 +347,20 @@ function fromPointToLatLng(point, max_zoom) {
                 //mapRect[0] could be array or number depending on JSON data were a map_rect [[x, y], [x, y]]
                 // or a point [x, y]
                 if(Object.prototype.toString.call(mapRect[0]) === '[object Array]') {
-                    mapRectNortheast = fromPointToLatLng(new google.maps.Point(mapRect[1][0], mapRect[0][1]), maxZoom);
-                    mapRectSouthwest = fromPointToLatLng(new google.maps.Point(mapRect[0][0], mapRect[1][1]), maxZoom);
+                    mapRectNortheast = fromPointToLatLng(new google.maps.Point(mapRect[1][0], mapRect[0][1]), MAXZOOM);
+                    mapRectSouthwest = fromPointToLatLng(new google.maps.Point(mapRect[0][0], mapRect[1][1]), MAXZOOM);
                     mapBounds = new google.maps.LatLngBounds(mapRectSouthwest, mapRectNortheast);
                 }else{
-                    mapRectNortheast = fromPointToLatLng(new google.maps.Point(mapRect[0], mapRect[1]), maxZoom);
+                    mapRectNortheast = fromPointToLatLng(new google.maps.Point(mapRect[0], mapRect[1]), MAXZOOM);
                     mapBounds = mapRectNortheast;
                 }
-                var overlayer = new NameOverlay(mapBounds, overlayZone[i][0], this.map);
+                var overlayer = new NameOverlay(mapBounds, overlayZone[i][0], map);
                 overlayList.push(overlayer);
             }
             return overlayList;
         },
-        init: function(map, maxZoom) {
-            this.map = map;
-            this.maxZoom = maxZoom;
+        init: function() {
+
         }
     };
 
@@ -311,37 +403,53 @@ function fromPointToLatLng(point, max_zoom) {
                         // locations[regionName]['explorable_zones'][mapName] = {}
                         // locations[regionName]['explorable_zones'][mapName]['continent_rect'] = $.extend(true, {}, continentRect);
                         locations['explorable_zones'].push([mapName, $.extend(true, {}, continentRect)]);
-                        var j;
-
 
                         //get the global bound of all the maps of the regions
-                        //search the min/max value of the current map bounf of the regin for northEast and southWest
+                        //search the min/max value of the current map bounf of the region for northEast and southWest
                         var globalContinentRect = locations['regions'][regionName];
                         if(!globalContinentRect['global_continent_rect']) {
                             globalContinentRect['global_continent_rect'] = continentRect;
                         }else{
-                            globalContinentRect['global_continent_rect'][0][0] = globalContinentRect['global_continent_rect'][0][0] <=
+                            globalContinentRect['global_continent_rect'][0][0] =
+                                globalContinentRect['global_continent_rect'][0][0] <=
                                 continentRect[0][0] ?
                                 globalContinentRect['global_continent_rect'][0][0] : continentRect[0][0];
-                            globalContinentRect['global_continent_rect'][0][1] = globalContinentRect['global_continent_rect'][0][1] <=
+                            globalContinentRect['global_continent_rect'][0][1] =
+                                globalContinentRect['global_continent_rect'][0][1] <=
                                 continentRect[0][1] ?
                                 globalContinentRect['global_continent_rect'][0][1] : continentRect[0][1];
 
-                            globalContinentRect['global_continent_rect'][1][0] = globalContinentRect['global_continent_rect'][1][0] >=
+                            globalContinentRect['global_continent_rect'][1][0] =
+                                globalContinentRect['global_continent_rect'][1][0] >=
                                 continentRect[1][0] ?
                                 globalContinentRect['global_continent_rect'][1][0] : continentRect[1][0];
-                            globalContinentRect['global_continent_rect'][1][1] = globalContinentRect['global_continent_rect'][1][1] >=
+                            globalContinentRect['global_continent_rect'][1][1] =
+                                globalContinentRect['global_continent_rect'][1][1] >=
                                 continentRect[1][1] ?
                                 globalContinentRect['global_continent_rect'][1][1] : continentRect[1][1];
                         }
                     }
-                    for (var sector in mapFloor['sectors']) {
+                    for(var sector in mapFloor['sectors']) {
                         var areaName = mapFloor['sectors'][sector]['name'];
                         var areaRect = mapFloor['sectors'][sector]['coord'];
                         // locations[regionName]['areas'][areaName] = {};
                         // locations[regionName]['areas'][areaName]['label_coord'] = areaRect;
                         locations['areas'].push([areaName, areaRect]);
                     }
+
+                    for(var poi in mapFloor['points_of_interest'] ) {
+                        // var poi = mapFloorDatas[r]['maps'][mapId]['points_of_interest'];
+                    // console.log(mapFloor['points_of_interest'][poi]['type'])
+                        var poiType = mapFloor['points_of_interest'][poi]['type'];
+                        // console.log(poiType)
+                        // console.log(typeof(poiType))
+                        if(!pois[poiType]) {
+                            pois[poiType] = [];
+                        }else{
+                            pois[poiType].push(mapFloor['points_of_interest'][poi]['coord']);
+                        }
+                    }
+
                 }
 
             }
@@ -350,12 +458,10 @@ function fromPointToLatLng(point, max_zoom) {
     };
 
     var ui = {
-        mapRef: null,
         initialize: function () {
             var _this = this;
 
-            this.mapRef = gmap.init();
-            mapNames.init(_this.mapRef, gmap.Gw2MapUiOptions.maxZoom);
+            map = gmap.init();
 
             //datas to load
             var urls = [
@@ -386,17 +492,78 @@ function fromPointToLatLng(point, max_zoom) {
             datasDeferred.done(_this.applyCallbacks)
                 .done(stack.fire);
 
-            google.maps.event.addListener(_this.mapRef, 'zoom_changed', function(ev) {
+            google.maps.event.addListener(map, 'zoom_changed', function(ev) {
                 // console.log('zoom_changed')
                 // mapNames.updateDisplay();
             });
 
-            google.maps.event.addListener(_this.mapRef, 'bounds_changed', $.proxy(mapNames.updateDisplay, mapNames));
+            google.maps.event.addListener(map, 'idle', $.proxy(mapNames.updateDisplay, mapNames));
 
             //fit the map on the region
             $(document).on('click', '.continent-name', function() {
                 // console.log($(this).data('latLng'));
-                ui.mapRef.fitBounds($(this).data('mapBounds'));
+                map.fitBounds($(this).data('mapBounds'));
+            });
+
+            var zoomChanged = false;
+
+            google.maps.event.addListener(map, 'center_changed', $.proxy(gmap.limitPanning, gmap));
+
+            google.maps.event.addListener(map, 'zoom_changed', function() {
+                zoomChanged = true;
+            });
+
+            google.maps.event.addListener(map, 'bounds_changed', function() {
+                //Zoom out could cause axtra panning of the map
+                if(zoomChanged) {
+                    var mapBounds = map.getBounds();
+                    var mapCenter = map.getCenter();
+
+                    var maxX = mapBounds.getNorthEast().lng();
+                    var minX = mapBounds.getSouthWest().lng();
+                    var allowedMaxX = allowedBounds.getNorthEast().lng();
+                    var allowedMinX = allowedBounds.getSouthWest().lng();
+
+                    var maxY = mapBounds.getNorthEast().lat();
+                    var minY = mapBounds.getSouthWest().lat();
+                    var allowedMaxY = allowedBounds.getNorthEast().lat();
+                    var allowedMinY = allowedBounds.getSouthWest().lat();
+
+                    if (map.getZoom() != MINZOOM) {
+                        var x = mapCenter.lng();
+                        var y = mapCenter.lat();
+
+                        //We check if current value are outside the limit
+                        //if it is calculate the nearest value in the limit
+                        if(maxY > allowedMaxY || maxY < y) {
+                            y = allowedMaxY - ((maxY - minY)/2);
+                        }
+
+                        if(minY < allowedMinY || minY > y) {
+                            y = allowedMinY + ((maxY - minY)/2);
+                        }
+
+                        if(maxX > allowedMaxX || maxX < x) {
+                            x -= allowedMaxX - Math.abs(maxX);
+                        }
+
+                        if(minX < allowedMinX || minX > x) {
+                            x += allowedMinX - Math.abs(minX);
+                        }
+                    }else{
+                        var x= 0;
+                        var y = 0;
+                    }
+
+                    if (x != mapCenter.lng() || y != mapCenter.lat()) {
+                        gmap.lastValidCenter = new google.maps.LatLng(y, x);
+                        map.setCenter(new google.maps.LatLng(y, x));
+                    }
+
+                    zoomChanged = false;
+
+                }
+
             });
 
             // overlay = new NameOverlay(map_bounds, data1.mapFloorDatas[region].name, mapRef);
@@ -405,7 +572,7 @@ function fromPointToLatLng(point, max_zoom) {
             // map.overlayMapTypes.insertAt(0, new CoordMapType(new google.maps.Size(256, 256)));
             // var p = new google.maps.Point(12839.8, 12483.8)
             // var myLatLng = fromPointToLatLng(p, 7);
-            // var marker = this.addMarker(myLatLng, this.mapRef);
+            // var marker = this.addMarker(myLatLng, map);
             // this.addMarker(Snowden_Drifts_Southwest);
             // this.addMarker(Snowden_Drifts_Southeast);
             // this.addMarker(Snowden_Drifts_Northwest);
@@ -421,17 +588,15 @@ function fromPointToLatLng(point, max_zoom) {
             }
         },
         drawExplorablesZones: function() {
-            var map = this.mapRef;
             var len = locations['explorable_zones'].length;
-            var maxZoom = gmap.getMaxZoom();
             // https://google-developers.appspot.com/maps/documentation/javascript/examples/polygon-simple
             for(var i = 0; i < len; i++) {
                 var mapRect = locations['explorable_zones'][i][1];
                 // [[17664, 11264],[21760, 13312]] -> [northwest, southeast]
-                var mapRectNorthwest = fromPointToLatLng(new google.maps.Point(mapRect[0][0], mapRect[0][1]), maxZoom);
-                var mapRectNortheast = fromPointToLatLng(new google.maps.Point(mapRect[1][0], mapRect[0][1]), maxZoom);
-                var mapRectSouthwest = fromPointToLatLng(new google.maps.Point(mapRect[0][0], mapRect[1][1]), maxZoom);
-                var mapRectSoutheast = fromPointToLatLng(new google.maps.Point(mapRect[1][0], mapRect[1][1]), maxZoom);
+                var mapRectNorthwest = fromPointToLatLng(new google.maps.Point(mapRect[0][0], mapRect[0][1]), MAXZOOM);
+                var mapRectNortheast = fromPointToLatLng(new google.maps.Point(mapRect[1][0], mapRect[0][1]), MAXZOOM);
+                var mapRectSouthwest = fromPointToLatLng(new google.maps.Point(mapRect[0][0], mapRect[1][1]), MAXZOOM);
+                var mapRectSoutheast = fromPointToLatLng(new google.maps.Point(mapRect[1][0], mapRect[1][1]), MAXZOOM);
                 var paths = [
                     mapRectNortheast,
                     mapRectNorthwest,
